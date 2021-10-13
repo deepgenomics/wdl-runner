@@ -7,7 +7,7 @@
 FROM gcr.io/google.com/cloudsdktool/cloud-sdk:alpine
 
 # Install openjdk8 and pip for the next two steps...
-RUN apk add --no-cache openjdk8-jre py-pip
+RUN apk add --no-cache openjdk11-jre py-pip
 
 # Install Python "requests" (for cromwell_driver.py) package
 RUN pip3 install requests simplejson
@@ -32,8 +32,8 @@ RUN chmod u+x /wdl_runner/wdl_runner.sh
 # Copy Cromwell and the Cromwell conf template
 RUN mkdir /cromwell
 RUN cd /cromwell && \
-    curl -L -O https://github.com/broadinstitute/cromwell/releases/download/53/cromwell-53.jar
-RUN ln /cromwell/cromwell-53.jar /cromwell/cromwell.jar
+    curl -L -O https://github.com/broadinstitute/cromwell/releases/download/69/cromwell-69.jar
+RUN ln /cromwell/cromwell-69.jar /cromwell/cromwell.jar
 COPY jes_template.conf /cromwell/
 
 # Set up the runtime environment
