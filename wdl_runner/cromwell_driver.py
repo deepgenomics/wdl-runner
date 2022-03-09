@@ -13,151 +13,166 @@
 #  * Submit execution requests to Cromwell
 #  * Poll Cromwell for job status
 
+import base64
 import logging
 import os
 import subprocess
 import time
-import base64
 
 import requests
-
 import sys_util
 
 
 class CromwellDriver(object):
+    def __init__(self, cromwell_conf, cromwell_jar):
+        self.cromwell_conf = cromwell_conf
+        self.cromwell_jar = cromwell_jar
 
-  def __init__(self, cromwell_conf, cromwell_jar):
-    self.cromwell_conf = cromwell_conf
-    self.cromwell_jar = cromwell_jar
+        self.cromwell_proc = None
 
-    self.cromwell_proc = None
+    def start(self):
+        """Start the Cromwell service."""
+        if self.cromwell_proc:
+            logging.info("Request to start Cromwell: already running")
+            return
 
-  def start(self):
-    """Start the Cromwell service."""
-    if self.cromwell_proc:
-      logging.info("Request to start Cromwell: already running")
-      return
+        self.cromwell_proc = subprocess.Popen(
+            [
+                "java",
+                "-Dconfig.file=" + self.cromwell_conf,
+                "-Xmx8g",
+                "-jar",
+                self.cromwell_jar,
+                "server",
+            ]
+        )
 
-    self.cromwell_proc = subprocess.Popen([
-        'java',
-        '-Dconfig.file=' + self.cromwell_conf,
-        '-Xmx4g',
-        '-jar', self.cromwell_jar,
-        'server'])
+        logging.info("Started Cromwell")
 
-    logging.info("Started Cromwell")
+    def fetch(self, wf_id=None, post=False, files=None, method=None):
+        url = "http://localhost:8000/api/workflows/v1"
+        if wf_id is not None:
+            url = os.path.join(url, wf_id)
+        if method is not None:
+            url = os.path.join(url, method)
+        if post:
+            r = requests.post(url, files=files)
+        else:
+            r = requests.get(url)
+        return r.json()
 
-  def fetch(self, wf_id=None, post=False, files=None, method=None):
-    url = 'http://localhost:8000/api/workflows/v1'
-    if wf_id is not None:
-      url = os.path.join(url, wf_id)
-    if method is not None:
-      url = os.path.join(url, method)
-    if post:
-      r = requests.post(url, files=files)
-    else:
-      r = requests.get(url)
-    return r.json()
+    def submit(
+        self,
+        wdl,
+        workflow_inputs,
+        workflow_options,
+        workflow_dependencies,
+        sleep_time=15,
+    ):
+        """Post new job to the server and poll for completion."""
 
-  def submit(self, wdl, workflow_inputs, workflow_options, workflow_dependencies, sleep_time=15):
-    """Post new job to the server and poll for completion."""
+        # Add required input files
+        with open(wdl, "rb") as f:
+            wf_source = f.read()
+        with open(workflow_inputs, "rb") as f:
+            wf_inputs = f.read()
 
-    # Add required input files
-    with open(wdl, 'rb') as f:
-      wf_source = f.read()
-    with open(workflow_inputs, 'rb') as f:
-      wf_inputs = f.read()
+        files = {
+            "workflowSource": wf_source,
+            "workflowInputs": wf_inputs,
+        }
 
-    files = {
-        'workflowSource': wf_source,
-        'workflowInputs': wf_inputs,
-    }
+        if workflow_dependencies:
+            with open(workflow_dependencies, "rb") as f:
+                # Read as Base64 byte string
+                wf_dependencies = f.read()
+                # Convert to binary zip file
+                files["workflowDependencies"] = base64.decodebytes(wf_dependencies)
 
-    if workflow_dependencies:
-      with open(workflow_dependencies, 'rb') as f:
-        # Read as Base64 byte string
-        wf_dependencies = f.read()
-        # Convert to binary zip file
-        files['workflowDependencies'] = base64.decodebytes(wf_dependencies)
+        # Add workflow options if specified
+        if workflow_options:
+            with open(workflow_options, "rb") as f:
+                wf_options = f.read()
+                files["workflowOptions"] = wf_options
 
-    # Add workflow options if specified
-    if workflow_options:
-      with open(workflow_options, 'rb') as f:
-        wf_options = f.read()
-        files['workflowOptions'] = wf_options
+        # After Cromwell start, it may take a few seconds to be ready for requests.
+        # Poll up to a minute for successful connect and submit.
 
-    # After Cromwell start, it may take a few seconds to be ready for requests.
-    # Poll up to a minute for successful connect and submit.
+        job = None
+        max_time_wait = 60
+        wait_interval = 5
 
-    job = None
-    max_time_wait = 60
-    wait_interval = 5
-
-    time.sleep(wait_interval)
-    for attempt in range(max_time_wait//wait_interval):
-      try:
-        job = self.fetch(post=True, files=files)
-        break
-      except requests.exceptions.ConnectionError as e:
-        logging.info("Failed to connect to Cromwell (attempt %d): %s",
-          attempt + 1, e)
         time.sleep(wait_interval)
+        for attempt in range(max_time_wait // wait_interval):
+            try:
+                job = self.fetch(post=True, files=files)
+                break
+            except requests.exceptions.ConnectionError as e:
+                logging.info(
+                    "Failed to connect to Cromwell (attempt %d): %s", attempt + 1, e
+                )
+                time.sleep(wait_interval)
 
-    if not job:
-      sys_util.exit_with_error(
-          "Failed to connect to Cromwell after {0} seconds".format(
-              max_time_wait))
+        if not job:
+            sys_util.exit_with_error(
+                "Failed to connect to Cromwell after {0} seconds".format(max_time_wait)
+            )
 
-    if job['status'] != 'Submitted':
-      sys_util.exit_with_error(
-          "Job status from Cromwell was not 'Submitted', instead '{0}'".format(
-              job['status']))
+        if job["status"] != "Submitted":
+            sys_util.exit_with_error(
+                "Job status from Cromwell was not 'Submitted', instead '{0}'".format(
+                    job["status"]
+                )
+            )
 
-    # Job is running.
-    cromwell_id = job['id']
-    logging.info("Job submitted to Cromwell. job id: %s", cromwell_id)
+        # Job is running.
+        cromwell_id = job["id"]
+        logging.info("Job submitted to Cromwell. job id: %s", cromwell_id)
 
-    # Poll Cromwell for job completion.
-    attempt = 0
-    max_failed_attempts = 3
-    while True:
-      time.sleep(sleep_time)
-
-      # Cromwell occassionally fails to respond to the status request.
-      # Only give up after 3 consecutive failed requests.
-      try:
-        status_json = self.fetch(wf_id=cromwell_id, method='status')
+        # Poll Cromwell for job completion.
         attempt = 0
-      except requests.exceptions.ConnectionError as e:
-        attempt += 1
-        logging.info("Error polling Cromwell job status (attempt %d): %s",
-          attempt, e)
+        max_failed_attempts = 3
+        while True:
+            time.sleep(sleep_time)
 
-        if attempt >= max_failed_attempts:
-          sys_util.exit_with_error(
-            "Cromwell did not respond for %d consecutive requests" % attempt)
+            # Cromwell occassionally fails to respond to the status request.
+            # Only give up after 3 consecutive failed requests.
+            try:
+                status_json = self.fetch(wf_id=cromwell_id, method="status")
+                attempt = 0
+            except requests.exceptions.ConnectionError as e:
+                attempt += 1
+                logging.info(
+                    "Error polling Cromwell job status (attempt %d): %s", attempt, e
+                )
 
-        continue
+                if attempt >= max_failed_attempts:
+                    sys_util.exit_with_error(
+                        "Cromwell did not respond for %d consecutive requests" % attempt
+                    )
 
-      status = status_json['status']
-      if status == 'Succeeded':
-        break
-      elif status == 'Submitted':
-        pass
-      elif status == 'Running':
-        pass
-      else:
-        sys_util.exit_with_error(
-            "Status of job is not Submitted, Running, or Succeeded: %s" % status)
+                continue
 
-    logging.info("Cromwell job status: %s", status)
+            status = status_json["status"]
+            if status == "Succeeded":
+                break
+            elif status == "Submitted":
+                pass
+            elif status == "Running":
+                pass
+            else:
+                sys_util.exit_with_error(
+                    "Status of job is not Submitted, Running, or Succeeded: %s" % status
+                )
 
-    # Cromwell produces a list of outputs and full job details
-    outputs = self.fetch(wf_id=cromwell_id, method='outputs')
-    metadata = self.fetch(wf_id=cromwell_id, method='metadata')
+        logging.info("Cromwell job status: %s", status)
 
-    return outputs, metadata
+        # Cromwell produces a list of outputs and full job details
+        outputs = self.fetch(wf_id=cromwell_id, method="outputs")
+        metadata = self.fetch(wf_id=cromwell_id, method="metadata")
+
+        return outputs, metadata
 
 
-if __name__ == '__main__':
-  pass
+if __name__ == "__main__":
+    pass
