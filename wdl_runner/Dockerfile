@@ -6,7 +6,7 @@
 
 FROM gcr.io/google.com/cloudsdktool/cloud-sdk:alpine
 
-# Install openjdk8 and pip for the next two steps...
+# Install openjdk11 and pip for the next two steps...
 RUN apk add --no-cache openjdk11-jre py-pip
 
 # Install Python "requests" (for cromwell_driver.py) package
