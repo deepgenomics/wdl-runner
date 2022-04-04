@@ -10,11 +10,11 @@ If you are a user and would like some more user-facing documentation, see [readt
 
 The repo has directories containing the following contents.
 
-## Docs
+### Docs
 
 These are the source pages which feed our [readthedocs](https://wdl-runner.readthedocs.io/en/latest/) pages.
 
-## The wdl_runner tool
+### The wdl_runner tool
 
 Source code for the `wdl_runner` tool. This is a convenient tool which handles:
  
@@ -32,3 +32,13 @@ It accepts an operation ID for a pipeline, extracts the LOGGING, WORKSPACE, and 
 and then examines these directories to glean some insights into the status of the operation.
 
 Note that if the WORKSPACE and/or OUTPUT directories for the specified operation are already populated (for example by another operation), this script will emit incorrect output.
+
+### Tests
+
+To run the tests:
+```shell
+# one-time setup only
+conda env create --file environment.yml
+conda activate wdl-runner
+PYTHONPATH=. pytest
+```

@@ -20,13 +20,15 @@ import subprocess
 import time
 
 import requests
-import sys_util
+from wdl_runner import sys_util
+from typing import List
 
 
 class CromwellDriver(object):
-    def __init__(self, cromwell_conf, cromwell_jar):
+    def __init__(self, cromwell_conf, cromwell_jar, jvm_flags: List[str] = None):
         self.cromwell_conf = cromwell_conf
         self.cromwell_jar = cromwell_jar
+        self.jvm_flags = jvm_flags
 
         self.cromwell_proc = None
 
@@ -36,15 +38,15 @@ class CromwellDriver(object):
             logging.info("Request to start Cromwell: already running")
             return
 
+        jvm_args = [
+            "-Dconfig.file=" + self.cromwell_conf,
+            "-jar",
+            self.cromwell_jar,
+        ]
+        if self.jvm_flags is not None:
+            jvm_args += self.jvm_flags
         self.cromwell_proc = subprocess.Popen(
-            [
-                "java",
-                "-Dconfig.file=" + self.cromwell_conf,
-                "-Xmx8g",
-                "-jar",
-                self.cromwell_jar,
-                "server",
-            ]
+            ["java"] + jvm_args + ["server"]
         )
 
         logging.info("Started Cromwell")
