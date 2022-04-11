@@ -1,0 +1,16 @@
+name: "wdl-runner"
+channels:
+  - deepgenomics
+  - conda-forge
+  - default
+  - bioconda
+dependencies:
+  - python ==3.9.7 # to be consistent with gcr.io/google.com/cloudsdktool/cloud-sdk:alpine python3 version
+  # dev dependencies
+  - ipykernel >=5.5.4
+  - ipython >=7.23.1
+  - myst-parser >=0.14.0
+  - pre-commit >=2.12.1
+  - pytest >=6.2.4
+  - sphinx >=3.5.4
+  - sphinx_rtd_theme >=0.5.2
