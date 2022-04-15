@@ -11,6 +11,7 @@
 import logging
 import os
 import sys
+from typing import Dict
 
 
 def exit_with_error(err_string):
@@ -19,7 +20,7 @@ def exit_with_error(err_string):
   sys.exit(1)
 
 
-def copy_from_env(env_vars, environ):
+def copy_from_env(env_vars, environ) -> Dict[str, str]:
   """Returns a dict of required environment variables."""
 
   result = {}

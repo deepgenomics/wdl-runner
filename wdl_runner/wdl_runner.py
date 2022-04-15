@@ -60,9 +60,13 @@ class Runner(object):
 
     # Fetch all required environment variables, exiting if unset.
     self.environ = sys_util.copy_from_env(
-        ['CROMWELL', 'CROMWELL_CONF'], environ)
+        ['CROMWELL', 'CROMWELL_CONF', 'JVM_OPTS'], environ)
     cromwell_conf = self.environ['CROMWELL_CONF']
     cromwell_jar = self.environ['CROMWELL']
+    raw_jvm_flags = self.environ['JVM_OPTS']
+    jvm_flags = None
+    if raw_jvm_flags:
+        jvm_flags = raw_jvm_flags.split(" ")
 
     # Verify that the output directory is empty (or not there).
     if self.args.output_dir and \
@@ -75,7 +79,7 @@ class Runner(object):
                             self.args.working_dir, self.args.project)
 
     # Set up the Cromwell driver
-    self.driver = cromwell_driver.CromwellDriver(cromwell_conf, cromwell_jar)
+    self.driver = cromwell_driver.CromwellDriver(cromwell_conf, cromwell_jar, jvm_flags)
     self.driver.start()
 
   def fill_cromwell_conf(self, cromwell_conf, working_dir, project):
