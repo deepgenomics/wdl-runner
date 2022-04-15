@@ -38,13 +38,10 @@ class CromwellDriver(object):
             logging.info("Request to start Cromwell: already running")
             return
 
-        jvm_args = [
-            "-Dconfig.file=" + self.cromwell_conf,
-            "-jar",
-            self.cromwell_jar,
-        ]
+        jvm_args = ["-Dconfig.file=" + self.cromwell_conf]
         if self.jvm_flags is not None:
             jvm_args += self.jvm_flags
+        jvm_args += ["-jar", self.cromwell_jar]
         self.cromwell_proc = subprocess.Popen(
             ["java"] + jvm_args + ["server"]
         )
