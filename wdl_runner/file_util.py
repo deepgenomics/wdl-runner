@@ -20,11 +20,11 @@ import wdl_runner.sys_util
 
 
 def file_safe_substitute(file_name, mapping):
-  """Performs placeholder replacement on a file, saving contents in place."""
+    """Performs placeholder replacement on a file, saving contents in place."""
 
-  with open(file_name, 'r') as f:
-    file_contents = f.read()
-    return string.Template(file_contents).safe_substitute(mapping)
+    with open(file_name, "r") as f:
+        file_contents = f.read()
+        return string.Template(file_contents).safe_substitute(mapping)
 
 
 def gsutil_cp(source_files, dest_dir):
@@ -50,55 +50,57 @@ def gsutil_cp(source_files, dest_dir):
 
 
 def verify_gcs_dir_empty_or_missing(path):
-  """Verify that the output "directory" does not exist or is empty."""
+    """Verify that the output "directory" does not exist or is empty."""
 
-  # Use the storage API directly instead of gsutil.
-  # gsutil does not return explicit error codes and so to detect
-  # a non-existent path would require capturing and parsing the error message.
+    # Use the storage API directly instead of gsutil.
+    # gsutil does not return explicit error codes and so to detect
+    # a non-existent path would require capturing and parsing the error message.
 
-  # Verify the input is a GCS path
-  if not path.startswith('gs://'):
-    wdl_runner.sys_util.exit_with_error("Path is not a GCS path: '%s'" % path)
+    # Verify the input is a GCS path
+    if not path.startswith("gs://"):
+        wdl_runner.sys_util.exit_with_error("Path is not a GCS path: '%s'" % path)
 
-  # Tokenize the path into bucket and prefix
-  parts = path[len('gs://'):].split('/', 1)
-  bucket = parts[0]
-  prefix = parts[1] if len(parts) > 1 else None
+    # Tokenize the path into bucket and prefix
+    parts = path[len("gs://") :].split("/", 1)
+    bucket = parts[0]
+    prefix = parts[1] if len(parts) > 1 else None
 
-  # Get the storage endpoint
-  service = discovery.build('storage', 'v1', cache_discovery=False)
+    # Get the storage endpoint
+    service = discovery.build("storage", "v1", cache_discovery=False)
 
-  # Build the request - only need the name
-  fields = 'nextPageToken,items(name)'
-  request = service.objects().list(
-      bucket=bucket, prefix=prefix, fields=fields, maxResults=2)
+    # Build the request - only need the name
+    fields = "nextPageToken,items(name)"
+    request = service.objects().list(
+        bucket=bucket, prefix=prefix, fields=fields, maxResults=2
+    )
 
-  # If we get more than 1 item, we are done (directory not empty)
-  # If we get zero items, we are done (directory empty)
-  # If we get 1 item, then we need to check if it is a "directory object"
+    # If we get more than 1 item, we are done (directory not empty)
+    # If we get zero items, we are done (directory empty)
+    # If we get 1 item, then we need to check if it is a "directory object"
 
-  items = []
-  while request and len(items) < 2:
-    try:
-      response = request.execute()
-    except HttpError as err:
-      error = simplejson.loads(err.content)
-      error = error['error']
+    items = []
+    while request and len(items) < 2:
+        try:
+            response = request.execute()
+        except HttpError as err:
+            error = simplejson.loads(err.content)
+            error = error["error"]
 
-      wdl_runner.sys_util.exit_with_error(
-          "%s %s: '%s'" % (error['code'], error['message'], path))
+            wdl_runner.sys_util.exit_with_error(
+                "%s %s: '%s'" % (error["code"], error["message"], path)
+            )
 
-    items.extend(response.get('items', []))
-    request = service.objects().list_next(request, response)
+        items.extend(response.get("items", []))
+        request = service.objects().list_next(request, response)
 
-  if not items:
-    return True
+    if not items:
+        return True
 
-  if len(items) == 1 and items[0]['name'].rstrip('/') == prefix.rstrip('/'):
-    return True
+    if len(items) == 1 and items[0]["name"].rstrip("/") == prefix.rstrip("/"):
+        return True
 
-  return False
+    return False
 
 
-if __name__ == '__main__':
-  pass
+if __name__ == "__main__":
+    pass
