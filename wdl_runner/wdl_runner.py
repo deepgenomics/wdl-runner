@@ -120,7 +120,7 @@ class Runner(object):
         logging.info("Workflow output files = %s", output_files)
 
         if output_files:
-            file_util.gsutil_cp(output_files, "%s/" % self.args.output_dir)
+            file_util.gcs_cp(output_files, "%s/" % self.args.output_dir)
 
     def copy_workflow_metadata(self, metadata, metadata_filename):
 
@@ -130,7 +130,7 @@ class Runner(object):
         with open(metadata_filename, "w") as f:
             json.dump(metadata, f)
 
-        file_util.gsutil_cp([metadata_filename], "%s/" % self.args.output_dir)
+        file_util.gcs_cp([metadata_filename], "%s/" % self.args.output_dir)
 
     def run(self):
         logging.info("starting")

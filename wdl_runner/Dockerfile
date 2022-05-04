@@ -6,14 +6,11 @@
 
 FROM gcr.io/google.com/cloudsdktool/cloud-sdk:alpine
 
-# Install openjdk11 and pip for the next two steps...
+# Install openjdk11 and pip
 RUN apk add --no-cache openjdk11-jre py-pip
 
-# Install Python "requests" (for cromwell_driver.py) package
-RUN pip3 install requests simplejson
-
-# Install Google Python client (for file_util.py) package
-RUN pip3 install --upgrade google-api-python-client
+COPY requirements.frozen /
+RUN pip3 install -r /requirements.frozen && rm /requirements.frozen
 
 # Remove pip
 RUN python3 -m pip uninstall pip --yes

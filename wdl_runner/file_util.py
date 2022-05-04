@@ -9,10 +9,13 @@
 # file_util.py
 
 import logging
-import simplejson
 import string
-import subprocess
+from pathlib import Path
+from typing import List
+from urllib.parse import urlparse
 
+import simplejson
+from google.cloud import storage
 from googleapiclient import discovery
 from googleapiclient.errors import HttpError
 
@@ -27,26 +30,67 @@ def file_safe_substitute(file_name, mapping):
         return string.Template(file_contents).safe_substitute(mapping)
 
 
-def gsutil_cp(source_files, dest_dir):
-  """Copies files to GCS and exits on error."""
+def _upload_one_file(client, src_file, dest_bucket, dest_gs_url):
+    src_parsed_url = urlparse(src_file)
+    dest_parsed_url = urlparse(dest_gs_url)
 
-  cp_cmd = ['gsutil', 'cp'] + source_files + [dest_dir]
+    if src_parsed_url.scheme == "":  # local file upload
 
-  logging.info("Copying %s to %s", source_files, dest_dir)
+        def once():
+            blob = dest_bucket.blob(
+                str(
+                    Path(
+                        dest_parsed_url.path[1:],
+                        Path(src_file).name,
+                    )
+                )
+            )
+            blob.upload_from_filename(src_file)
 
-  # Copies can fail, so include retries...
-  for attempt in range(3):
-    p = subprocess.Popen(cp_cmd, stderr=subprocess.PIPE)
-    return_code = p.wait()
-    if not return_code:
-      return
+    elif src_parsed_url.scheme == "gs":  # copy between gcs buckets
 
-    logging.warn("Copy %s to %s failed: attempt %d",
-                 source_files, dest_dir, attempt)
+        def once():
+            src_bucketname = src_parsed_url.hostname
+            src_bucket = client.bucket(src_bucketname)
+            path = src_parsed_url.path
+            src_blob = src_bucket.blob(path[1:])
+            src_bucket.copy_blob(
+                src_blob,
+                dest_bucket,
+                str(dest_parsed_url.path[1:]),
+            )
 
-  sys_util.exit_with_error(
-      "copying files from %s to %s failed: %s" % (
-          source_files, dest_dir, p.stderr.read()))
+    else:
+        raise ValueError(f"Cannot handle src file {src_file}")
+
+    for attempt in range(3):
+        try:
+            logging.info(f"uploading file {src_file} to {dest_gs_url}")
+            once()
+        except Exception as e:
+            logging.warning(
+                f"Copy {src_file} to {dest_gs_url} failed: attempt {attempt}", e
+            )
+        else:
+            return
+
+    raise RuntimeError(f"copying file {src_file} to {dest_gs_url} failed")
+
+
+def gcs_cp(source_files: List[str], dest_gs_url: str, gs_client=storage.Client()):
+    """
+    Copies files between GCS buckets.
+
+    Args:
+        source_files: URLs of files to be copied, e.g
+        ["gs://bucket1/some/path/file.txt", "gs://bucket1/some/path/file2.txt"]
+        dest_gs_url: URL of destination folder, e.g gs://bucket2/other/path
+    """
+    dest_parsed_url = urlparse(dest_gs_url)
+    dest_bucketname = dest_parsed_url.hostname
+    dest_bucket = gs_client.bucket(dest_bucketname)
+    for file in source_files:
+        _upload_one_file(gs_client, file, dest_bucket, dest_gs_url)
 
 
 def verify_gcs_dir_empty_or_missing(path):
