@@ -16,6 +16,7 @@ from urllib.parse import urlparse
 
 import simplejson
 from google.cloud import storage
+from google.cloud.exceptions import GoogleCloudError
 from googleapiclient import discovery
 from googleapiclient.errors import HttpError
 
@@ -70,7 +71,7 @@ def _upload_one_file(client: storage.Client, src_file: str, dest_gs_url: str):
         try:
             logging.info(f"uploading file {src_file} to {dest_gs_url}")
             once()
-        except Exception as e:
+        except GoogleCloudError as e:
             logging.warning(
                 f"Copy {src_file} to {dest_gs_url} failed: attempt {attempt}", e
             )
