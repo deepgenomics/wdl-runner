@@ -30,7 +30,10 @@ def file_safe_substitute(file_name, mapping):
         return string.Template(file_contents).safe_substitute(mapping)
 
 
-def _upload_one_file(client, src_file, dest_bucket, dest_gs_url):
+def _upload_one_file(client: storage.Client, src_file: str, dest_gs_url: str):
+    dest_parsed_url = urlparse(dest_gs_url)
+    dest_bucketname = dest_parsed_url.hostname
+    dest_bucket = client.bucket(dest_bucketname)
     src_parsed_url = urlparse(src_file)
     dest_parsed_url = urlparse(dest_gs_url)
 
@@ -77,7 +80,11 @@ def _upload_one_file(client, src_file, dest_bucket, dest_gs_url):
     raise RuntimeError(f"copying file {src_file} to {dest_gs_url} failed")
 
 
-def gcs_cp(source_files: List[str], dest_gs_url: str, gs_client=storage.Client()):
+def gcs_cp(
+    source_files: List[str],
+    dest_gs_url: str,
+    gs_client: storage.Client = storage.Client(),
+):
     """
     Copies files between GCS buckets.
 
@@ -86,11 +93,8 @@ def gcs_cp(source_files: List[str], dest_gs_url: str, gs_client=storage.Client()
         ["gs://bucket1/some/path/file.txt", "gs://bucket1/some/path/file2.txt"]
         dest_gs_url: URL of destination folder, e.g gs://bucket2/other/path
     """
-    dest_parsed_url = urlparse(dest_gs_url)
-    dest_bucketname = dest_parsed_url.hostname
-    dest_bucket = gs_client.bucket(dest_bucketname)
     for file in source_files:
-        _upload_one_file(gs_client, file, dest_bucket, dest_gs_url)
+        _upload_one_file(gs_client, file, dest_gs_url)
 
 
 def verify_gcs_dir_empty_or_missing(path):
