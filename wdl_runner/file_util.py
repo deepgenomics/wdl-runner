@@ -16,7 +16,7 @@ import subprocess
 from googleapiclient import discovery
 from googleapiclient.errors import HttpError
 
-import sys_util
+import wdl_runner.sys_util
 
 
 def file_safe_substitute(file_name, mapping):
@@ -58,7 +58,7 @@ def verify_gcs_dir_empty_or_missing(path):
 
   # Verify the input is a GCS path
   if not path.startswith('gs://'):
-    sys_util.exit_with_error("Path is not a GCS path: '%s'" % path)
+    wdl_runner.sys_util.exit_with_error("Path is not a GCS path: '%s'" % path)
 
   # Tokenize the path into bucket and prefix
   parts = path[len('gs://'):].split('/', 1)
@@ -85,7 +85,7 @@ def verify_gcs_dir_empty_or_missing(path):
       error = simplejson.loads(err.content)
       error = error['error']
 
-      sys_util.exit_with_error(
+      wdl_runner.sys_util.exit_with_error(
           "%s %s: '%s'" % (error['code'], error['message'], path))
 
     items.extend(response.get('items', []))
