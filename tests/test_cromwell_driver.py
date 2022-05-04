@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 from wdl_runner.cromwell_driver import CromwellDriver
 
+
 def test_cromwell_driver_start():
     subject = CromwellDriver(
         cromwell_conf="cromwell.conf",
@@ -11,12 +12,14 @@ def test_cromwell_driver_start():
     with patch("subprocess.Popen") as popen_mock:
         popen_mock.return_value = "assigned"
         subject.start()
-        popen_mock.assert_called_once_with([
-            "java",
-            "-Dconfig.file=cromwell.conf",
-            "-jar",
-            "cromwell.jar",
-            "-Xmx8G",
-            "-Dprop=val",
-            "server",
-        ])
+        popen_mock.assert_called_once_with(
+            [
+                "java",
+                "-Dconfig.file=cromwell.conf",
+                "-Xmx8G",
+                "-Dprop=val",
+                "-jar",
+                "cromwell.jar",
+                "server",
+            ]
+        )

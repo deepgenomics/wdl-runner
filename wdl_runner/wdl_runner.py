@@ -33,152 +33,169 @@ import argparse
 import json
 import logging
 import os
-from urllib import request
-from urllib import error
+from urllib import error, request
 
 import cromwell_driver
 import file_util
 import sys_util
 import wdl_outputs_util
 
-WDL_RUN_METADATA_FILE = 'wdl_run_metadata.json'
+WDL_RUN_METADATA_FILE = "wdl_run_metadata.json"
 
 
 def gce_get_metadata(path):
-  """Queries the GCE metadata server the specified value."""
-  req = request.Request(
-      f'http://metadata.google.internal/computeMetadata/v1/{path}',
-      None, {'Metadata-Flavor': 'Google'})
+    """Queries the GCE metadata server the specified value."""
+    req = request.Request(
+        f"http://metadata.google.internal/computeMetadata/v1/{path}",
+        None,
+        {"Metadata-Flavor": "Google"},
+    )
 
-  return request.urlopen(req).read().decode('utf-8')
+    return request.urlopen(req).read().decode("utf-8")
 
 
 class Runner(object):
+    def __init__(self, args, environ):
+        self.args = args
 
-  def __init__(self, args, environ):
-    self.args = args
+        # Fetch all required environment variables, exiting if unset.
+        self.environ = sys_util.copy_from_env(
+            ["CROMWELL", "CROMWELL_CONF", "JVM_OPTS"], environ
+        )
+        cromwell_conf = self.environ["CROMWELL_CONF"]
+        cromwell_jar = self.environ["CROMWELL"]
+        raw_jvm_flags = self.environ["JVM_OPTS"]
+        jvm_flags = None
+        if raw_jvm_flags:
+            jvm_flags = raw_jvm_flags.split(" ")
 
-    # Fetch all required environment variables, exiting if unset.
-    self.environ = sys_util.copy_from_env(
-        ['CROMWELL', 'CROMWELL_CONF', 'JVM_OPTS'], environ)
-    cromwell_conf = self.environ['CROMWELL_CONF']
-    cromwell_jar = self.environ['CROMWELL']
-    raw_jvm_flags = self.environ['JVM_OPTS']
-    jvm_flags = None
-    if raw_jvm_flags:
-        jvm_flags = raw_jvm_flags.split(" ")
+        # Verify that the output directory is empty (or not there).
+        if self.args.output_dir and not file_util.verify_gcs_dir_empty_or_missing(
+            self.args.output_dir
+        ):
+            sys_util.exit_with_error(
+                "Output directory not empty: %s" % self.args.output_dir
+            )
 
-    # Verify that the output directory is empty (or not there).
-    if self.args.output_dir and \
-        not file_util.verify_gcs_dir_empty_or_missing(self.args.output_dir):
-      sys_util.exit_with_error(
-          "Output directory not empty: %s" % self.args.output_dir)
+        # Plug in the working directory and the project id to the Cromwell conf
+        self.fill_cromwell_conf(cromwell_conf, self.args.working_dir, self.args.project)
 
-    # Plug in the working directory and the project id to the Cromwell conf
-    self.fill_cromwell_conf(cromwell_conf,
-                            self.args.working_dir, self.args.project)
+        # Set up the Cromwell driver
+        self.driver = cromwell_driver.CromwellDriver(
+            cromwell_conf, cromwell_jar, jvm_flags
+        )
+        self.driver.start()
 
-    # Set up the Cromwell driver
-    self.driver = cromwell_driver.CromwellDriver(cromwell_conf, cromwell_jar, jvm_flags)
-    self.driver.start()
+    def fill_cromwell_conf(self, cromwell_conf, working_dir, project):
+        try:
+            project_id = gce_get_metadata("project/project-id")
 
-  def fill_cromwell_conf(self, cromwell_conf, working_dir, project):
-    try:
-      project_id = gce_get_metadata('project/project-id')
+            if project and project != project_id:
+                logging.warning(
+                    "Overridding project ID %s with %s", project, project_id
+                )
 
-      if project and project != project_id:
-        logging.warning("Overridding project ID %s with %s",
-                        project, project_id)
+        except error.URLError as e:
+            logging.warning(
+                "URLError trying to fetch project ID from Compute Engine metdata"
+            )
+            logging.warning(e)
+            logging.warning("Assuming not running on Compute Engine")
 
-    except error.URLError as e:
-      logging.warning(
-          "URLError trying to fetch project ID from Compute Engine metdata")
-      logging.warning(e)
-      logging.warning("Assuming not running on Compute Engine")
+            project_id = project
 
-      project_id = project
+        new_conf_data = file_util.file_safe_substitute(
+            cromwell_conf, {"project_id": project_id, "working_dir": working_dir}
+        )
 
-    new_conf_data = file_util.file_safe_substitute(cromwell_conf, {
-        'project_id': project_id,
-        'working_dir': working_dir
-    })
+        with open(cromwell_conf, "w") as f:
+            f.write(new_conf_data)
 
-    with open(cromwell_conf, 'w') as f:
-      f.write(new_conf_data)
+    def copy_workflow_output(self, result):
+        output_files = wdl_outputs_util.get_workflow_output(
+            result["outputs"], self.args.working_dir
+        )
 
-  def copy_workflow_output(self, result):
-    output_files = wdl_outputs_util.get_workflow_output(
-        result['outputs'], self.args.working_dir)
+        # Copy final output files (if any)
+        logging.info("Workflow output files = %s", output_files)
 
-    # Copy final output files (if any)
-    logging.info("Workflow output files = %s", output_files)
+        if output_files:
+            file_util.gcs_cp(output_files, "%s/" % self.args.output_dir)
 
-    if output_files:
-      file_util.gsutil_cp(output_files, "%s/" % self.args.output_dir)
+    def copy_workflow_metadata(self, metadata, metadata_filename):
 
-  def copy_workflow_metadata(self, metadata, metadata_filename):
+        logging.info("Copying run metadata to %s", self.args.output_dir)
 
-    logging.info("Copying run metadata to %s", self.args.output_dir)
+        # Copy the run metadata
+        with open(metadata_filename, "w") as f:
+            json.dump(metadata, f)
 
-    # Copy the run metadata
-    with open(metadata_filename, 'w') as f:
-      json.dump(metadata, f)
+        file_util.gcs_cp([metadata_filename], "%s/" % self.args.output_dir)
 
-    file_util.gsutil_cp([metadata_filename], "%s/" % self.args.output_dir)
+    def run(self):
+        logging.info("starting")
 
-  def run(self):
-    logging.info("starting")
+        # Submit the job to the local Cromwell server
+        (result, metadata) = self.driver.submit(
+            self.args.wdl,
+            self.args.workflow_inputs,
+            self.args.workflow_options,
+            self.args.workflow_dependencies,
+        )
+        logging.info(result)
 
-    # Submit the job to the local Cromwell server
-    (result, metadata) = self.driver.submit(self.args.wdl,
-                                            self.args.workflow_inputs,
-                                            self.args.workflow_options,
-                                            self.args.workflow_dependencies)
-    logging.info(result)
+        # Copy run metadata and output files to the output directory
+        if self.args.output_dir:
+            self.copy_workflow_metadata(metadata, WDL_RUN_METADATA_FILE)
+            self.copy_workflow_output(result)
 
-    # Copy run metadata and output files to the output directory
-    if self.args.output_dir:
-      self.copy_workflow_metadata(metadata, WDL_RUN_METADATA_FILE)
-      self.copy_workflow_output(result)
-
-    logging.info("run complete")
+        logging.info("run complete")
 
 
 def main():
-  parser = argparse.ArgumentParser(description='Run WDLs')
-  parser.add_argument('--wdl', required=True,
-                      help='The WDL file to run')
-  parser.add_argument('--workflow-inputs', required=True,
-                      help='The workflow inputs (JSON) file')
-  parser.add_argument('--workflow-options', required=False,
-                      help='The workflow options (JSON) file')
-  parser.add_argument('--project', required=False,
-                      help='The Cloud project id')
-  parser.add_argument('--working-dir', required=True,
-                      help='Location for Cromwell to put intermediate results.')
-  parser.add_argument('--output-dir', required=False,
-                      help='Location to store the final results.')
-  parser.add_argument('--workflow-dependencies', required=False, help='The workflow dependencies (ZIP) file')
+    parser = argparse.ArgumentParser(description="Run WDLs")
+    parser.add_argument("--wdl", required=True, help="The WDL file to run")
+    parser.add_argument(
+        "--workflow-inputs", required=True, help="The workflow inputs (JSON) file"
+    )
+    parser.add_argument(
+        "--workflow-options", required=False, help="The workflow options (JSON) file"
+    )
+    parser.add_argument("--project", required=False, help="The Cloud project id")
+    parser.add_argument(
+        "--working-dir",
+        required=True,
+        help="Location for Cromwell to put intermediate results.",
+    )
+    parser.add_argument(
+        "--output-dir", required=False, help="Location to store the final results."
+    )
+    parser.add_argument(
+        "--workflow-dependencies",
+        required=False,
+        help="The workflow dependencies (ZIP) file",
+    )
 
-  args = parser.parse_args()
+    args = parser.parse_args()
 
-  # Sanitize the working and output paths
-  args.working_dir.rstrip('/')
-  if args.output_dir:
-    args.output_dir.rstrip('/')
+    # Sanitize the working and output paths
+    args.working_dir.rstrip("/")
+    if args.output_dir:
+        args.output_dir.rstrip("/")
 
-  # Write logs at info level
-  FORMAT = '%(asctime)-15s %(module)s %(levelname)s: %(message)s'
-  logging.basicConfig(level=logging.INFO, format=FORMAT)
+    # Write logs at info level
+    FORMAT = "%(asctime)-15s %(module)s %(levelname)s: %(message)s"
+    logging.basicConfig(level=logging.INFO, format=FORMAT)
 
-  # Don't info-log every new connection to localhost, to keep stderr small.
-  logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
-  logging.getLogger("requests.packages.urllib3.connectionpool").setLevel(
-      logging.WARNING)
+    # Don't info-log every new connection to localhost, to keep stderr small.
+    logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
+    logging.getLogger("requests.packages.urllib3.connectionpool").setLevel(
+        logging.WARNING
+    )
 
-  runner = Runner(args, os.environ)
-  runner.run()
+    runner = Runner(args, os.environ)
+    runner.run()
 
 
-if __name__ == '__main__':
-  main()
+if __name__ == "__main__":
+    main()
