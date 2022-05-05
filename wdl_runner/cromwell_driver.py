@@ -18,10 +18,10 @@ import logging
 import os
 import subprocess
 import time
+from typing import List
 
 import requests
-from wdl_runner import sys_util
-from typing import List
+import sys_util
 
 
 class CromwellDriver(object):
@@ -42,9 +42,7 @@ class CromwellDriver(object):
         if self.jvm_flags is not None:
             jvm_args += self.jvm_flags
         jvm_args += ["-jar", self.cromwell_jar]
-        self.cromwell_proc = subprocess.Popen(
-            ["java"] + jvm_args + ["server"]
-        )
+        self.cromwell_proc = subprocess.Popen(["java"] + jvm_args + ["server"])
 
         logging.info("Started Cromwell")
 
