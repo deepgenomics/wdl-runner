@@ -40,5 +40,5 @@ To run the tests:
 # one-time setup only
 conda env create --file environment.yml
 conda activate wdl-runner
-PYTHONPATH=. pytest
+PYTHONPATH=.:./wdl_runner pytest
 ```

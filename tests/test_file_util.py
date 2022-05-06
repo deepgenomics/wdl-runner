@@ -13,20 +13,23 @@ def test_gcs_cp():
     src_bucketname = "bucket2"
 
     buckets = {}
-    actual_blobs = []
+    actual_dest_blobs = []
+    actual_src_blobs = []
 
     def bucket(bucketname: str):
+        if bucketname in buckets:
+            return buckets[bucketname]
         res = gcs_client.f_orig_bucket(bucketname)
         if bucketname == dest_bucketname:
             dest_blob = res.blob("ignored1")
             dest_blob.upload_from_filename = MagicMock()
             res.blob = MagicMock(return_value=dest_blob)
             buckets[bucketname] = res
-            actual_blobs.append(dest_blob)
+            actual_dest_blobs.append(dest_blob)
             return res
         elif bucketname == src_bucketname:
             src_blob = res.blob("ignored2")
-            actual_blobs.append(src_blob)
+            actual_src_blobs.append(src_blob)
             res.copy_blob = MagicMock()
             res.blob = MagicMock(return_value=src_blob)
             buckets[bucketname] = res
@@ -45,10 +48,11 @@ def test_gcs_cp():
     )
 
     gcs_client.bucket.assert_has_calls([call(dest_bucketname), call(src_bucketname)])
-    assert len(actual_blobs) == 2
-    actual_blobs[0].upload_from_filename.assert_has_calls(
-        [call("/some/local/file3.txt"), call("relative4.txt")]
-    )
+    assert len(actual_src_blobs) == 1
     buckets[src_bucketname].copy_blob.assert_has_calls(
-        [call(actual_blobs[1], buckets[dest_bucketname], "path1/path2/file2.txt")]
+        [call(actual_src_blobs[0], buckets[dest_bucketname], "path1/path2/file2.txt")]
+    )
+    assert len(actual_dest_blobs) == 1
+    actual_dest_blobs[0].upload_from_filename.assert_has_calls(
+        [call("/some/local/file3.txt"), call("relative4.txt")]
     )
