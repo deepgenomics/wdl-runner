@@ -60,7 +60,7 @@ def _upload_one_file(client: storage.Client, src_file: str, dest_gs_url: str):
             src_bucket.copy_blob(
                 src_blob,
                 dest_bucket,
-                str(dest_parsed_url.path[1:]),
+                str(Path(dest_parsed_url.path[1:]) / Path(src_parsed_url.path).name),
             )
 
     else:

@@ -9,7 +9,7 @@ def test_gcs_cp():
     gcs_client = storage.Client()
     gcs_client.f_orig_bucket = gcs_client.bucket
     dest_bucketname = "bucket1"
-    dest_url = f"gs://{dest_bucketname}/path1/path2/file2.txt"
+    dest_url = f"gs://{dest_bucketname}/path3/path4/"
     src_bucketname = "bucket2"
 
     buckets = {}
@@ -50,7 +50,7 @@ def test_gcs_cp():
     gcs_client.bucket.assert_has_calls([call(dest_bucketname), call(src_bucketname)])
     assert len(actual_src_blobs) == 1
     buckets[src_bucketname].copy_blob.assert_has_calls(
-        [call(actual_src_blobs[0], buckets[dest_bucketname], "path1/path2/file2.txt")]
+        [call(actual_src_blobs[0], buckets[dest_bucketname], "path3/path4/file2.txt")]
     )
     assert len(actual_dest_blobs) == 1
     actual_dest_blobs[0].upload_from_filename.assert_has_calls(
