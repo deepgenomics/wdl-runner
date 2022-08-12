@@ -44,7 +44,8 @@ class CromwellDriver(object):
         jvm_args += ["-jar", self.cromwell_jar]
         self.cromwell_proc = subprocess.Popen(["java"] + jvm_args + ["server"])
 
-        logging.info("Started Cromwell")
+        logging.info("Started Cromwell using command: %s", " ".join(["java"] + jvm_args
+                                                                    + ["server"]))
 
     def fetch(self, wf_id=None, post=False, files=None, method=None):
         url = "http://localhost:8000/api/workflows/v1"
@@ -53,9 +54,13 @@ class CromwellDriver(object):
         if method is not None:
             url = os.path.join(url, method)
         if post:
+            logging.info("send POST request to Cromwell server: %s with files %s", url,
+                         ", ".join(files))
             r = requests.post(url, files=files)
         else:
+            logging.info("send GET request to Cromwell server: %s", url)
             r = requests.get(url)
+        logging.info("Response: %s", r.json())
         return r.json()
 
     def submit(
@@ -106,8 +111,10 @@ class CromwellDriver(object):
                 break
             except requests.exceptions.ConnectionError as e:
                 logging.info(
-                    "Failed to connect to Cromwell (attempt %d): %s", attempt + 1, e
+                    "Failed to connect to Cromwell (attempt %d of %d): %s",
+                    attempt + 1, max_time_wait // wait_interval, e
                 )
+                logging.info("Sleep for %d seconds before next attempt", wait_interval)
                 time.sleep(wait_interval)
 
         if not job:
@@ -132,15 +139,17 @@ class CromwellDriver(object):
         while True:
             time.sleep(sleep_time)
 
-            # Cromwell occassionally fails to respond to the status request.
+            # Cromwell occasionally fails to respond to the status request.
             # Only give up after 3 consecutive failed requests.
             try:
+                logging.info("get ID: %s job status from Cromwell", cromwell_id)
                 status_json = self.fetch(wf_id=cromwell_id, method="status")
                 attempt = 0
             except requests.exceptions.ConnectionError as e:
                 attempt += 1
                 logging.info(
-                    "Error polling Cromwell job status (attempt %d): %s", attempt, e
+                    "Error polling Cromwell job status (attempt %d of %d): %s",
+                    attempt, max_failed_attempts, e
                 )
 
                 if attempt >= max_failed_attempts:
