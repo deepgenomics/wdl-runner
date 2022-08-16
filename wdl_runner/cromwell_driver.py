@@ -42,10 +42,10 @@ class CromwellDriver(object):
         if self.jvm_flags is not None:
             jvm_args += self.jvm_flags
         jvm_args += ["-jar", self.cromwell_jar]
-        self.cromwell_proc = subprocess.Popen(["java"] + jvm_args + ["server"])
+        cmd = ["java"] + jvm_args + ["server"]
+        self.cromwell_proc = subprocess.Popen(cmd)
 
-        logging.info("Started Cromwell using command: %s", " ".join(["java"] + jvm_args
-                                                                    + ["server"]))
+        logging.info("Started Cromwell using command: %s", "'" + " ".join(cmd) + "'")
 
     def fetch(self, wf_id=None, post=False, files=None, method=None):
         url = "http://localhost:8000/api/workflows/v1"
