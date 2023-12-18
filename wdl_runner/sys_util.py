@@ -10,14 +10,12 @@
 
 import logging
 import os
-import sys
 from typing import Dict
 
 
 def exit_with_error(err_string):
   """Emit the specified error string and exit with an exit code of 1."""
-  sys.stderr.write("ERROR: {0}\n".format(err_string))
-  sys.exit(1)
+  raise Exception("ERROR: {0}\n".format(err_string))
 
 
 def copy_from_env(env_vars, environ) -> Dict[str, str]:
@@ -36,4 +34,3 @@ def copy_from_env(env_vars, environ) -> Dict[str, str]:
 
 if __name__ == '__main__':
   pass
-
