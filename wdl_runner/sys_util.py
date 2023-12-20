@@ -13,11 +13,6 @@ import os
 from typing import Dict
 
 
-def exit_with_error(err_string):
-  """Emit the specified error string and exit with an exit code of 1."""
-  raise Exception("ERROR: {0}\n".format(err_string))
-
-
 def copy_from_env(env_vars, environ) -> Dict[str, str]:
   """Returns a dict of required environment variables."""
 
@@ -25,7 +20,7 @@ def copy_from_env(env_vars, environ) -> Dict[str, str]:
   for e in env_vars:
     val = environ.get(e, None)
     if val is None:
-      exit_with_error("the " + e + " environment variable must be set")
+      raise RuntimeError("the " + e + " environment variable must be set")
     logging.info(e + "->" + os.environ[e])
     result[e] = val
 

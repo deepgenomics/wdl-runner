@@ -73,7 +73,7 @@ class Runner(object):
         if self.args.output_dir and not file_util.verify_gcs_dir_empty_or_missing(
             self.args.output_dir
         ):
-            sys_util.exit_with_error(
+            raise RuntimeError(
                 "Output directory not empty: %s" % self.args.output_dir
             )
 

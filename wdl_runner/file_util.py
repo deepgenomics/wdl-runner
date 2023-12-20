@@ -15,7 +15,6 @@ from typing import List
 from urllib.parse import urlparse
 
 import simplejson
-import sys_util
 from google.cloud import storage
 from google.cloud.exceptions import GoogleCloudError
 from googleapiclient import discovery
@@ -106,7 +105,7 @@ def verify_gcs_dir_empty_or_missing(path):
 
     # Verify the input is a GCS path
     if not path.startswith("gs://"):
-        sys_util.exit_with_error("Path is not a GCS path: '%s'" % path)
+        raise ValueError("Path is not a GCS path: '%s'" % path)
 
     # Tokenize the path into bucket and prefix
     parts = path[len("gs://") :].split("/", 1)
@@ -133,8 +132,7 @@ def verify_gcs_dir_empty_or_missing(path):
         except HttpError as err:
             error = simplejson.loads(err.content)
             error = error["error"]
-
-            sys_util.exit_with_error(
+            raise RuntimeError(
                 "%s %s: '%s'" % (error["code"], error["message"], path)
             )
 
