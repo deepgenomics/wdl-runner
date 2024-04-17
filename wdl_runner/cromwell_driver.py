@@ -21,7 +21,6 @@ import time
 from typing import List
 
 import requests
-import sys_util
 
 
 class CromwellDriver(object):
@@ -118,12 +117,12 @@ class CromwellDriver(object):
                 time.sleep(wait_interval)
 
         if not job:
-            sys_util.exit_with_error(
+            raise TimeoutError(
                 "Failed to connect to Cromwell after {0} seconds".format(max_time_wait)
             )
 
         if job["status"] != "Submitted":
-            sys_util.exit_with_error(
+            raise RuntimeError(
                 "Job status from Cromwell was not 'Submitted', instead '{0}'".format(
                     job["status"]
                 )
@@ -153,10 +152,9 @@ class CromwellDriver(object):
                 )
 
                 if attempt >= max_failed_attempts:
-                    sys_util.exit_with_error(
+                    raise TimeoutError(
                         "Cromwell did not respond for %d consecutive requests" % attempt
-                    )
-
+                        )
                 continue
 
             status = status_json["status"]
@@ -167,7 +165,7 @@ class CromwellDriver(object):
             elif status == "Running":
                 pass
             else:
-                sys_util.exit_with_error(
+                raise RuntimeError(
                     "Status of job is not Submitted, Running, or Succeeded: %s" % status
                 )
 

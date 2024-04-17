@@ -10,14 +10,7 @@
 
 import logging
 import os
-import sys
 from typing import Dict
-
-
-def exit_with_error(err_string):
-  """Emit the specified error string and exit with an exit code of 1."""
-  sys.stderr.write("ERROR: {0}\n".format(err_string))
-  sys.exit(1)
 
 
 def copy_from_env(env_vars, environ) -> Dict[str, str]:
@@ -27,7 +20,7 @@ def copy_from_env(env_vars, environ) -> Dict[str, str]:
   for e in env_vars:
     val = environ.get(e, None)
     if val is None:
-      exit_with_error("the " + e + " environment variable must be set")
+      raise RuntimeError("the " + e + " environment variable must be set")
     logging.info(e + "->" + os.environ[e])
     result[e] = val
 
@@ -36,4 +29,3 @@ def copy_from_env(env_vars, environ) -> Dict[str, str]:
 
 if __name__ == '__main__':
   pass
-
