@@ -4,16 +4,24 @@
 # license that can be found in the LICENSE file or at
 # https://developers.google.com/open-source/licenses/bsd
 
-FROM gcr.io/google.com/cloudsdktool/cloud-sdk:alpine
+FROM python:3.11-slim as compiler
+ENV PYTHONUNBUFFERED 1
+
+WORKDIR /app/
+
+RUN python -m venv /opt/venv
+# Enable venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+COPY requirements.frozen /app/requirements.frozen
+RUN pip install -r requirements.frozen
+# change symlink to match the cloud-sdk image
+RUN rm /opt/venv/bin/python && ln -s /usr/bin/python /opt/venv/bin/python
+
+FROM gcr.io/google.com/cloudsdktool/cloud-sdk:472.0.0-alpine
 
 # Install openjdk11 and pip
 RUN apk add --no-cache openjdk11-jre py-pip
-
-COPY requirements.frozen /
-RUN pip3 install -r /requirements.frozen && rm /requirements.frozen
-
-# Remove pip
-RUN python3 -m pip uninstall pip --yes
 
 # Copy the wdl_runner python, shell script, and dependencies
 RUN mkdir /wdl_runner
@@ -38,3 +46,7 @@ ENV CROMWELL /cromwell/cromwell.jar
 ENV CROMWELL_CONF /cromwell/jes_template.conf
 
 WORKDIR /wdl_runner
+
+COPY --from=compiler /opt/venv /opt/venv
+# Enable venv
+ENV PATH="/opt/venv/bin:$PATH"
