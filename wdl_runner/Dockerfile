@@ -4,8 +4,8 @@
 # license that can be found in the LICENSE file or at
 # https://developers.google.com/open-source/licenses/bsd
 
-FROM python:3.11-slim as compiler
-ENV PYTHONUNBUFFERED 1
+FROM python:3.11-slim AS compiler
+ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app/
 
@@ -42,8 +42,8 @@ RUN ln /cromwell/cromwell-69.jar /cromwell/cromwell.jar
 COPY jes_template.conf /cromwell/
 
 # Set up the runtime environment
-ENV CROMWELL /cromwell/cromwell.jar
-ENV CROMWELL_CONF /cromwell/jes_template.conf
+ENV CROMWELL=/cromwell/cromwell.jar
+ENV CROMWELL_CONF=/cromwell/jes_template.conf
 
 WORKDIR /wdl_runner
 
