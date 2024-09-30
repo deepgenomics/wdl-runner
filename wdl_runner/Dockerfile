@@ -18,7 +18,7 @@ RUN pip install -r requirements.frozen
 # change symlink to match the cloud-sdk image
 RUN rm /opt/venv/bin/python && ln -s /usr/bin/python /opt/venv/bin/python
 
-FROM gcr.io/google.com/cloudsdktool/cloud-sdk:472.0.0-alpine
+FROM gcr.io/google.com/cloudsdktool/cloud-sdk:494.0.0-alpine
 
 # Install openjdk11 and pip
 RUN apk add --no-cache openjdk11-jre py-pip
