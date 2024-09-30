@@ -4,8 +4,8 @@
 # license that can be found in the LICENSE file or at
 # https://developers.google.com/open-source/licenses/bsd
 
-FROM python:3.11-slim as compiler
-ENV PYTHONUNBUFFERED 1
+FROM python:3.11-slim AS compiler
+ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app/
 
@@ -18,7 +18,7 @@ RUN pip install -r requirements.frozen
 # change symlink to match the cloud-sdk image
 RUN rm /opt/venv/bin/python && ln -s /usr/bin/python /opt/venv/bin/python
 
-FROM gcr.io/google.com/cloudsdktool/cloud-sdk:472.0.0-alpine
+FROM gcr.io/google.com/cloudsdktool/cloud-sdk:494.0.0-alpine
 
 # Install openjdk11 and pip
 RUN apk add --no-cache openjdk11-jre py-pip
@@ -42,8 +42,8 @@ RUN ln /cromwell/cromwell-69.jar /cromwell/cromwell.jar
 COPY jes_template.conf /cromwell/
 
 # Set up the runtime environment
-ENV CROMWELL /cromwell/cromwell.jar
-ENV CROMWELL_CONF /cromwell/jes_template.conf
+ENV CROMWELL=/cromwell/cromwell.jar
+ENV CROMWELL_CONF=/cromwell/jes_template.conf
 
 WORKDIR /wdl_runner
 
